@@ -7,9 +7,9 @@ PawPal+ is a pet-care planner (CodePath AI110, Module 2). Python OOP logic layer
 Workflow is **CLI-first**: logic in `pawpal_system.py` must work and be verified via `main.py` and pytest before `app.py` is wired up.
 
 ## How we work
-- The human (Kyle) is lead architect. Propose, then implement; Kyle reviews every diff and makes every commit and push. **Never commit or push.**
+- The human (Kyle) is lead architect. Propose, then implement; Kyle reviews every diff and makes every commit and push. **Never commit or push** unless Kyle explicitly asks.
 - One phase per chat session. Stay inside the current phase's scope.
-- Do **not** write `reflection.md` in Kyle's voice. You may list facts he can use (what you suggested, what changed, what tests show).
+- Do **not** write `reflection.md` in Kyle's voice unless he asks; then draft from facts only and he edits it.
 - If a suggestion deviates from the design below, say so explicitly so Kyle can accept or reject it (this feeds the reflection).
 - Prefer readable over clever. If a "Pythonic" version is harder to follow, offer both.
 
@@ -21,7 +21,7 @@ Workflow is **CLI-first**: logic in `pawpal_system.py` must work and be verified
 | `tests/test_pawpal.py` | pytest suite; run with `python -m pytest` |
 | `diagrams/uml.mmd` | Mermaid class diagram — **canonical file the grader reads**; must match final code |
 | `README.md` | Overview, classes, Smarter Scheduling table, run/test instructions, sample CLI output and pytest output as fenced code blocks, Demo Walkthrough, confidence level (1–5 stars) |
-| `reflection.md` | Kyle writes this |
+| `reflection.md` | Kyle's reflection (AI may draft from facts on request) |
 | `ai_interactions.md` | Stretch: Agent Workflow + Prompt Comparison sections |
 | `app.py` | Streamlit UI, imports from `pawpal_system.py` |
 
@@ -33,24 +33,28 @@ Workflow is **CLI-first**: logic in `pawpal_system.py` must work and be verified
 - Frequency is a string: `"once" | "daily" | "weekly"`, mapped via `FREQUENCY_DAYS = {"daily": 1, "weekly": 7}`.
 - Conflict detection returns warning strings; it never raises.
 - **ASCII-only text in `pawpal_system.py`** (warnings, explanations). Emoji/colors (SF4) live only in the CLI/Streamlit display layer, never in the logic layer. Redirected Windows output garbles non-ASCII.
-- No new dependencies without asking (exception: `tabulate` for the formatting stretch).
+- No new dependencies without asking. Approved: `tabulate[widechars]` (SF4; `wcwidth` aligns emoji columns).
+- `main.py` calls `sys.stdout.reconfigure(encoding="utf-8")` because piped Windows stdout is cp1252 and cannot encode emoji.
 
-## Design (approved decisions A–L)
+## Design (approved decisions A–L; final API below)
 **Task** (dataclass): `task_id` (uuid4 hex[:8], default factory), `description`, `time`, `duration_minutes`, `priority`, `frequency`, `due_date`, `completed=False`, `pet_name=""`.
-Methods: `mark_complete()`, `next_occurrence() -> Task | None` (new task, new id, due_date + timedelta(FREQUENCY_DAYS); None for "once").
+Methods: `__post_init__` validation (zero-padded HH:MM 00:00-23:59, known priority/frequency, positive duration, no running past midnight), `mark_complete()`, `next_occurrence(today=None) -> Task | None` (see decision Q).
 
 **Pet** (dataclass): `name`, `species`, `age`, `tasks: list[Task]`.
 Methods: `add_task(task)` (stamps `task.pet_name = self.name`), `remove_task(task_id)`, `get_tasks()`.
 
 **Owner**: `name`, `available_minutes` (daily time budget), `pets: list[Pet]`.
-Methods: `add_pet(pet)` (raises `ValueError` on a duplicate pet name), `get_pet(name) -> Pet | None`, `get_all_tasks()` (every task across every pet), `find_task(task_id) -> tuple[Pet, Task] | None` (task plus its owning pet).
+Methods: `add_pet(pet)` (raises `ValueError` on a duplicate pet name, case-insensitive), `get_pet(name) -> Pet | None`, `get_all_tasks()` (every task across every pet), `find_task(task_id) -> tuple[Pet, Task] | None` (task plus its owning pet), `save_to_json(path)`, `@classmethod load_from_json(path) -> Owner` (SF2; dates as ISO strings; rebuilds via `Task(**d)` so validation runs).
 
 **Scheduler**: holds `owner`. **Always reads tasks via `owner.get_all_tasks()`**, never from a single pet (rubric: multi-pet).
 Every method that takes `tasks` treats it as optional: `None` means "all owner tasks", so calls compose, e.g. `sort_by_time(filter_tasks(pet_name="Mochi"))`.
 - `sort_by_time(tasks)` — `sorted(..., key=lambda t: (t.due_date, t.time, PRIORITY_RANK[t.priority], t.description))` — date first so recurring next-day copies sort chronologically; deterministic tie-break. Same-day order is unchanged.
+- `sort_by_priority(tasks)` — key `(due_date, PRIORITY_RANK, time, description)`: priority first within each day (SF3).
 - `filter_tasks(tasks, pet_name=None, completed=None)`
-- `detect_conflicts(tasks)` — flags **overlapping time ranges** (start + duration), across all pets; label each warning same-pet vs cross-pet.
-- `mark_task_complete(task_id)` — looks up via `owner.find_task`; marks complete, **keeps the completed task** (history), and if recurring adds `next_occurrence()` to the same pet; returns the new task or None. If the task is already completed (or not found), do nothing and return None (no duplicate next occurrence).
+- `find_conflict_pairs(tasks)` — `(earlier, later)` overlapping pairs via `itertools.combinations`; single source of the overlap rule (used by `detect_conflicts` and `app.py`).
+- `detect_conflicts(tasks)` — warning strings built from `find_conflict_pairs`; labels same-pet vs cross-pet.
+- `next_available_slot(duration_minutes, day, window_start="07:00", window_end="22:00") -> str | None` — first gap between pending tasks on `day` where the duration fits (SF1).
+- `mark_task_complete(task_id, today=None)` — looks up via `owner.find_task`; marks complete, **keeps the completed task** (history), and if recurring adds `next_occurrence()` to the same pet; returns the new task or None. If the task is already completed (or not found), do nothing and return None (no duplicate next occurrence).
 - `build_daily_plan(day)` — only tasks due on `day` and not completed; greedy first-fit: order by priority, then time; if a task doesn't fit the remaining budget, **skip it and continue** (never `break`). Returns `(planned, skipped)`. It does **not** drop overlapping tasks — conflicts are warnings only (callers run `detect_conflicts(planned)`).
 - `explain_plan(planned, skipped)` — human-readable reasons. Recomputes from `self.owner.available_minutes` by walking `planned` in order. The only skip reason is "didn't fit the remaining budget" (not-due tasks are never in `skipped`), so no extra parameters are needed.
 
@@ -82,10 +86,10 @@ Known tradeoffs (for reflection): plan and conflict checks are separate (an over
 5. **Testing** — tests always pass `due_date` explicitly (default is `date.today()`, which makes tests date-dependent). Sorting correctness, daily recurrence creates the next-day task, conflict detection flags overlaps, plus edge cases (pet with no tasks, exact same time, plan only uses tasks due that day, budget exhausted). Light input validation in `__post_init__`: valid HH:MM, known priority/frequency, positive duration, and reject tasks that run past midnight (start + duration > 24:00).
 6. **Polish** — Streamlit shows sorted plan, `st.warning` for conflicts, `st.table`/`st.success`; update `uml.mmd` to final; README Features + Demo Walkthrough + CLI sample.
 
-### Stretch (all five planned, after the core works)
+### Stretch (all five done)
 - **SF1 Agent mode:** `Scheduler.next_available_slot(duration, day)`; document in `ai_interactions.md` → Agent Workflow.
 - **SF2 Persistence:** `Owner.save_to_json(path)` / `Owner.load_from_json(path)` via `dataclasses.asdict` + manual loader (dates ↔ ISO strings); `data.json`; README section.
-- **SF3 Priority scheduling:** `sort_by_priority_then_time(tasks)`; README CLI examples.
+- **SF3 Priority scheduling:** `sort_by_priority(tasks)`; README CLI examples.
 - **SF4 Formatting:** `tabulate` tables + emoji/status markers in CLI; README section naming the library/functions.
 - **SF5 Prompt comparison:** same recurring-task prompt to Opus vs Sonnet; table in `ai_interactions.md`.
 
@@ -98,4 +102,4 @@ python main.py
 python -m pytest
 streamlit run app.py
 ```
-Note: `pytest --cov` in the starter README needs `pytest-cov`, which is not in requirements.txt. Either add it or remove that line.
+`pytest --cov` was removed from the README (pytest-cov is not a dependency).

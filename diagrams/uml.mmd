@@ -1,5 +1,5 @@
 classDiagram
-    %% PawPal+ UML (draft, Phase 1). Update in Phase 6 to match the final code.
+    %% PawPal+ UML (final). Matches pawpal_system.py.
 
     class Owner {
         +str name
@@ -9,6 +9,8 @@ classDiagram
         +get_pet(name) Pet
         +get_all_tasks() list~Task~
         +find_task(task_id) tuple
+        +save_to_json(path) None
+        +load_from_json(path)$ Owner
     }
 
     class Pet {
@@ -22,25 +24,28 @@ classDiagram
     }
 
     class Task {
-        +str task_id
         +str description
         +str time
         +int duration_minutes
         +str priority
         +str frequency
         +date due_date
+        +str task_id
         +bool completed
         +str pet_name
         +mark_complete() None
-        +next_occurrence() Task
+        +next_occurrence(today) Task
     }
 
     class Scheduler {
         +Owner owner
         +sort_by_time(tasks) list~Task~
+        +sort_by_priority(tasks) list~Task~
         +filter_tasks(tasks, pet_name, completed) list~Task~
+        +find_conflict_pairs(tasks) list~tuple~
         +detect_conflicts(tasks) list~str~
-        +mark_task_complete(task_id) Task
+        +next_available_slot(duration_minutes, day, window_start, window_end) str
+        +mark_task_complete(task_id, today) Task
         +build_daily_plan(day) tuple
         +explain_plan(planned, skipped) list~str~
     }
