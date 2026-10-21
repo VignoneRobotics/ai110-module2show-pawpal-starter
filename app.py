@@ -32,6 +32,10 @@ def task_rows(tasks: list[Task]) -> list[dict]:
 
 st.title("🐾 PawPal+")
 
+# One-shot message saved by "Mark complete" before its rerun.
+if "flash" in st.session_state:
+    st.success(st.session_state.pop("flash"))
+
 name_col, budget_col = st.columns(2)
 with name_col:
     # A blank name keeps the current one.
@@ -106,12 +110,13 @@ else:
     if st.button("Mark complete"):
         next_task = scheduler.mark_task_complete(chosen_id)
         if next_task is not None:
-            st.success(
+            st.session_state["flash"] = (
                 f"Completed. Next {next_task.frequency} occurrence of "
                 f"'{next_task.description}' ({next_task.pet_name}) added for {next_task.due_date.isoformat()}."
             )
         else:
-            st.success("Completed. No next occurrence (one-time task).")
+            st.session_state["flash"] = "Completed. No next occurrence (one-time task)."
+        st.rerun()  # rebuild the dropdown; the message is shown at the top of the next run
 
 st.subheader("Task list")
 if not owner.get_all_tasks():
@@ -137,6 +142,10 @@ st.divider()
 
 st.subheader("Build Schedule")
 if st.button("Generate schedule"):
+    st.session_state["show_plan"] = True
+
+# Recomputed every run while the flag is set, so the plan reflects new tasks and completions.
+if st.session_state.get("show_plan"):
     planned, skipped = scheduler.build_daily_plan(date.today())
 
     conflicts = scheduler.detect_conflicts(planned)
