@@ -53,8 +53,6 @@ The logic layer lives in `pawpal_system.py` as four classes; `main.py` is a CLI 
 
 **How they connect:** an Owner has many Pets, each Pet has many Tasks, and the Scheduler reads every task through `owner.get_all_tasks()`, so a plan covers all of the owner's pets.
 
-**Status:** `sort_by_time`, `filter_tasks`, `detect_conflicts`, `Task.next_occurrence` and `Scheduler.mark_task_complete` are stubs until Phase 4.
-
 ```bash
 python main.py       # print today's schedule
 python -m pytest     # run the tests

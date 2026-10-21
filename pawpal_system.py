@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
+from itertools import combinations
 
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 FREQUENCY_DAYS = {"daily": 1, "weekly": 7}
@@ -20,6 +21,21 @@ def _describe_range(task: Task) -> str:
     """Return "Description HH:MM-HH:MM" for a task's start and end time."""
     end = _to_minutes(task.time) + task.duration_minutes
     return f"{task.description} {task.time}-{end // 60:02d}:{end % 60:02d}"
+
+
+def _time_range(task: Task) -> tuple[int, int]:
+    """Return a task's (start, end) in minutes since midnight."""
+    start = _to_minutes(task.time)
+    return start, start + task.duration_minutes
+
+
+def _conflict_warning(first: Task, second: Task) -> str:
+    """Return the warning string for two overlapping tasks, earlier one first."""
+    if first.pet_name == second.pet_name:
+        label = f"same pet: {first.pet_name}"
+    else:
+        label = f"cross-pet: {first.pet_name}, {second.pet_name}"
+    return f"Conflict ({label}): {_describe_range(first)} overlaps {_describe_range(second)}"
 
 
 @dataclass
@@ -147,25 +163,14 @@ class Scheduler:
         pending = [t for t in tasks if not t.completed]
 
         warnings: list[str] = []
-        for i in range(len(pending)):
-            for j in range(i + 1, len(pending)):
-                a, b = pending[i], pending[j]
-                if a.due_date != b.due_date:
-                    continue
-                a_start = _to_minutes(a.time)
-                a_end = a_start + a.duration_minutes
-                b_start = _to_minutes(b.time)
-                b_end = b_start + b.duration_minutes
-                if a_start < b_end and b_start < a_end:
-                    if b_start < a_start:
-                        a, b = b, a
-                    if a.pet_name == b.pet_name:
-                        label = f"same pet: {a.pet_name}"
-                    else:
-                        label = f"cross-pet: {a.pet_name}, {b.pet_name}"
-                    warnings.append(
-                        f"Conflict ({label}): {_describe_range(a)} overlaps {_describe_range(b)}"
-                    )
+        for a, b in combinations(pending, 2):  # each pair is checked once
+            if a.due_date != b.due_date:
+                continue
+            a_start, a_end = _time_range(a)
+            b_start, b_end = _time_range(b)
+            if a_start < b_end and b_start < a_end:
+                first, second = (a, b) if a_start <= b_start else (b, a)
+                warnings.append(_conflict_warning(first, second))
         return warnings
 
     def mark_task_complete(self, task_id: str) -> Task | None:
