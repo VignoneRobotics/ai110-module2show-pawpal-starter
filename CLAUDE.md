@@ -46,7 +46,7 @@ Methods: `add_pet(pet)` (raises `ValueError` on a duplicate pet name), `get_pet(
 
 **Scheduler**: holds `owner`. **Always reads tasks via `owner.get_all_tasks()`**, never from a single pet (rubric: multi-pet).
 Every method that takes `tasks` treats it as optional: `None` means "all owner tasks", so calls compose, e.g. `sort_by_time(filter_tasks(pet_name="Mochi"))`.
-- `sort_by_time(tasks)` — `sorted(..., key=lambda t: (t.time, PRIORITY_RANK[t.priority], t.description))` (deterministic tie-break)
+- `sort_by_time(tasks)` — `sorted(..., key=lambda t: (t.due_date, t.time, PRIORITY_RANK[t.priority], t.description))` — date first so recurring next-day copies sort chronologically; deterministic tie-break. Same-day order is unchanged.
 - `filter_tasks(tasks, pet_name=None, completed=None)`
 - `detect_conflicts(tasks)` — flags **overlapping time ranges** (start + duration), across all pets; label each warning same-pet vs cross-pet.
 - `mark_task_complete(task_id)` — looks up via `owner.find_task`; marks complete, **keeps the completed task** (history), and if recurring adds `next_occurrence()` to the same pet; returns the new task or None. If the task is already completed (or not found), do nothing and return None (no duplicate next occurrence).
@@ -74,6 +74,7 @@ Known tradeoffs (for reflection): plan and conflict checks are separate (an over
 - **S Scope:** don't touch `app.py` in Phase 4. `main.py` uses `sort_by_time` (remove the inline `sorted()`), shows out-of-order tasks, a filtered view, a completed daily task with its next-day copy, and same-pet + cross-pet conflict warnings.
 - **Display order:** `build_daily_plan` still *selects* by priority, but callers *display* `sort_by_time(planned)`; `explain_plan` output stays in selection order. No signature change.
 - **Conflicts on the plan:** callers run `detect_conflicts(planned)` (CLI in Phase 4, `st.warning` in Phase 6).
+- **Sort-key fix (after Step 3):** recurring copies exposed that a time-only key put tomorrow's 07:00 before today's 08:00, so `due_date` became the first key. CLI `format_task` shows due date and done/pending so same-time tasks on different days are distinguishable.
 - **Rejected:** "overdue" filter (scope creep, signature change) — candidate for reflection 4b "next steps". Optimal/knapsack planning — greedy is the documented tradeoff.
 
 4. **Algorithms** — sorting, filtering, recurrence (timedelta), conflict detection; update `main.py` with out-of-order and overlapping tasks; README "Smarter Scheduling" table naming each method.
