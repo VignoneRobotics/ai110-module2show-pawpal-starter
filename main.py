@@ -1,17 +1,42 @@
 """CLI demo for PawPal+: builds one owner with two pets and prints today's schedule."""
 
+import sys
 from datetime import date
+
+from tabulate import tabulate
 
 from pawpal_system import Owner, Pet, Scheduler, Task
 
+# Piped Windows output defaults to cp1252, which cannot encode the emoji below.
+sys.stdout.reconfigure(encoding="utf-8")
 
-def format_task(task: Task) -> str:
-    """Return a one-line description of a task for the schedule."""
-    status = "done" if task.completed else "pending"
-    return (
-        f"  {task.due_date.isoformat()} {task.time}  {task.description} ({task.pet_name})"
-        f"  {task.duration_minutes} min  {task.priority}  [{status}]"
-    )
+PRIORITY_ICONS = {"high": "🔴 high", "medium": "🟡 medium", "low": "🟢 low"}
+HEADERS = ["date", "time", "pet", "task", "min", "priority", "status"]
+
+
+def format_tasks(tasks: list[Task]) -> str:
+    """Return the tasks as a rounded_grid table with emoji priority and status."""
+    rows = [
+        [
+            t.due_date.isoformat(),
+            t.time,
+            t.pet_name,
+            t.description,
+            t.duration_minutes,
+            PRIORITY_ICONS[t.priority],
+            "✅ done" if t.completed else "⏳ pending",
+        ]
+        for t in tasks
+    ]
+    return tabulate(rows, headers=HEADERS, tablefmt="rounded_grid")
+
+
+def print_conflicts(warnings: list[str]) -> None:
+    """Print each conflict warning prefixed with a warning sign, or "(none)"."""
+    for warning in warnings:
+        print(f"  ⚠️ {warning}")
+    if not warnings:
+        print("  (none)")
 
 
 def main() -> None:
@@ -63,41 +88,32 @@ def main() -> None:
     print(f"  Mochi now has {len(mochi.tasks)} tasks (completed one is kept).")
 
     print("\nAll tasks as entered:")
-    for task in owner.get_all_tasks():
-        print(format_task(task))
+    print(format_tasks(owner.get_all_tasks()))
 
     print("\nAll tasks sorted by time:")
-    for task in scheduler.sort_by_time():
-        print(format_task(task))
+    print(format_tasks(scheduler.sort_by_time()))
 
     print("\nSorted by priority (then time):")
-    for task in scheduler.sort_by_priority():
-        print(format_task(task))
+    print(format_tasks(scheduler.sort_by_priority()))
 
     print("\nMochi's tasks only (by time):")
-    for task in scheduler.sort_by_time(scheduler.filter_tasks(pet_name="Mochi")):
-        print(format_task(task))
+    print(format_tasks(scheduler.sort_by_time(scheduler.filter_tasks(pet_name="Mochi"))))
 
     print("\nPending tasks only (by time):")
-    for task in scheduler.sort_by_time(scheduler.filter_tasks(completed=False)):
-        print(format_task(task))
+    print(format_tasks(scheduler.sort_by_time(scheduler.filter_tasks(completed=False))))
 
     print("\nPlanned (in time order):")
-    for task in scheduler.sort_by_time(planned):
-        print(format_task(task))
+    print(format_tasks(scheduler.sort_by_time(planned)))
 
     print("\nConflicts among all pending tasks:")
-    for warning in scheduler.detect_conflicts() or ["(none)"]:
-        print(f"  ! {warning}")
+    print_conflicts(scheduler.detect_conflicts())
 
     print("\nConflicts within the planned tasks:")
-    for warning in scheduler.detect_conflicts(planned) or ["(none)"]:
-        print(f"  ! {warning}")
+    print_conflicts(scheduler.detect_conflicts(planned))
 
     print("\nSkipped:")
     if skipped:
-        for task in skipped:
-            print(format_task(task))
+        print(format_tasks(skipped))
     else:
         print("  (none)")
 
