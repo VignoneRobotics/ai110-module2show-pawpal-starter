@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 FREQUENCY_DAYS = {"daily": 1, "weekly": 7}
@@ -36,6 +36,14 @@ class Task:
 
     def next_occurrence(self) -> Task | None:
         """Return a new task for the next recurrence, or None if frequency is "once"."""
+        if self.frequency not in FREQUENCY_DAYS:
+            return None
+        return replace(
+            self,
+            task_id=uuid.uuid4().hex[:8],
+            completed=False,
+            due_date=self.due_date + timedelta(days=FREQUENCY_DAYS[self.frequency]),
+        )
 
 
 @dataclass
@@ -131,6 +139,17 @@ class Scheduler:
 
     def mark_task_complete(self, task_id: str) -> Task | None:
         """Complete a task, add its next occurrence if recurring, and return it or None."""
+        found = self.owner.find_task(task_id)
+        if found is None:
+            return None
+        pet, task = found
+        if task.completed:
+            return None
+        task.mark_complete()
+        next_task = task.next_occurrence()
+        if next_task is not None:
+            pet.add_task(next_task)
+        return next_task
 
     def build_daily_plan(self, day: date) -> tuple[list[Task], list[Task]]:
         """Return (planned, skipped) tasks for the day, within the owner's time budget."""

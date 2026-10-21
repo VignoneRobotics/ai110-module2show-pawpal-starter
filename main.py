@@ -25,7 +25,8 @@ def main() -> None:
 
     # Added deliberately out of time order.
     bean.add_task(Task("Laser playtime", "19:00", 40, "low", due_date=today))
-    mochi.add_task(Task("Brush coat", "18:00", 20, "low", due_date=today))
+    brush = Task("Brush coat", "18:00", 20, "low", frequency="daily", due_date=today)
+    mochi.add_task(brush)
     bean.add_task(Task("Clean litter box", "12:00", 10, "medium", due_date=today))
     mochi.add_task(Task("Evening walk", "17:00", 25, "medium", due_date=today))
     bean.add_task(Task("Breakfast", "08:00", 15, "high", due_date=today))
@@ -33,8 +34,9 @@ def main() -> None:
 
     scheduler = Scheduler(owner)
 
-    # Mark one task done so the "pending only" view has something to exclude.
-    next(t for t in mochi.tasks if t.description == "Morning walk").mark_complete()
+    # Complete a daily task: it stays as history and spawns tomorrow's copy.
+    next_brush = scheduler.mark_task_complete(brush.task_id)
+    repeat_call = scheduler.mark_task_complete(brush.task_id)
 
     planned, skipped = scheduler.build_daily_plan(today)
 
@@ -43,6 +45,16 @@ def main() -> None:
     print(f"Owner: {owner.name} | Pets: {', '.join(p.name for p in owner.pets)}")
     print(f"Time available: {owner.available_minutes} min")
     print("=" * 56)
+
+    print("\nRecurring task demo (Brush coat, daily):")
+    print(f"  Completed: id={brush.task_id} due={brush.due_date} completed={brush.completed}")
+    if next_brush is not None:
+        print(
+            f"  Next copy: id={next_brush.task_id} due={next_brush.due_date} "
+            f"completed={next_brush.completed} pet={next_brush.pet_name}"
+        )
+    print(f"  Completing it again returns: {repeat_call}")
+    print(f"  Mochi now has {len(mochi.tasks)} tasks (completed one is kept).")
 
     print("\nAll tasks as entered:")
     for task in owner.get_all_tasks():
