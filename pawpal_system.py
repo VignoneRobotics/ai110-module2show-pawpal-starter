@@ -103,6 +103,12 @@ class Scheduler:
 
     def sort_by_time(self, tasks: list[Task] | None = None) -> list[Task]:
         """Return tasks sorted by their "HH:MM" time."""
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+        return sorted(
+            tasks,
+            key=lambda t: (t.time, PRIORITY_RANK[t.priority], t.description),
+        )
 
     def filter_tasks(
         self,
@@ -111,6 +117,14 @@ class Scheduler:
         completed: bool | None = None,
     ) -> list[Task]:
         """Return tasks matching the given pet name and completion status."""
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+        result = list(tasks)
+        if pet_name is not None:
+            result = [t for t in result if t.pet_name.lower() == pet_name.lower()]
+        if completed is not None:
+            result = [t for t in result if t.completed == completed]
+        return result
 
     def detect_conflicts(self, tasks: list[Task] | None = None) -> list[str]:
         """Return warning strings for tasks with overlapping time ranges."""

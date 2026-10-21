@@ -23,13 +23,19 @@ def main() -> None:
     owner.add_pet(mochi)
     owner.add_pet(bean)
 
-    mochi.add_task(Task("Morning walk", "07:30", 30, "high", due_date=today))
-    mochi.add_task(Task("Brush coat", "18:00", 20, "low", due_date=today))
-    bean.add_task(Task("Breakfast", "08:00", 15, "high", due_date=today))
-    bean.add_task(Task("Clean litter box", "12:00", 10, "medium", due_date=today))
+    # Added deliberately out of time order.
     bean.add_task(Task("Laser playtime", "19:00", 40, "low", due_date=today))
+    mochi.add_task(Task("Brush coat", "18:00", 20, "low", due_date=today))
+    bean.add_task(Task("Clean litter box", "12:00", 10, "medium", due_date=today))
+    mochi.add_task(Task("Evening walk", "17:00", 25, "medium", due_date=today))
+    bean.add_task(Task("Breakfast", "08:00", 15, "high", due_date=today))
+    mochi.add_task(Task("Morning walk", "07:30", 30, "high", due_date=today))
 
     scheduler = Scheduler(owner)
+
+    # Mark one task done so the "pending only" view has something to exclude.
+    next(t for t in mochi.tasks if t.description == "Morning walk").mark_complete()
+
     planned, skipped = scheduler.build_daily_plan(today)
 
     print("=" * 56)
@@ -38,9 +44,24 @@ def main() -> None:
     print(f"Time available: {owner.available_minutes} min")
     print("=" * 56)
 
+    print("\nAll tasks as entered:")
+    for task in owner.get_all_tasks():
+        print(format_task(task))
+
+    print("\nAll tasks sorted by time:")
+    for task in scheduler.sort_by_time():
+        print(format_task(task))
+
+    print("\nMochi's tasks only (by time):")
+    for task in scheduler.sort_by_time(scheduler.filter_tasks(pet_name="Mochi")):
+        print(format_task(task))
+
+    print("\nPending tasks only (by time):")
+    for task in scheduler.sort_by_time(scheduler.filter_tasks(completed=False)):
+        print(format_task(task))
+
     print("\nPlanned (in time order):")
-    # Phase 4: replace this inline sort with scheduler.sort_by_time(planned)
-    for task in sorted(planned, key=lambda t: t.time):
+    for task in scheduler.sort_by_time(planned):
         print(format_task(task))
 
     print("\nSkipped:")
