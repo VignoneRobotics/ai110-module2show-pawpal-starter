@@ -10,12 +10,36 @@ st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 if "owner" not in st.session_state:
     st.session_state.owner = Owner(name="Jordan")
 owner: Owner = st.session_state.owner
+scheduler = Scheduler(owner)
+
+
+def task_rows(tasks: list[Task]) -> list[dict]:
+    """Return table rows (one dict per task) for st.table."""
+    return [
+        {
+            "date": t.due_date.isoformat(),
+            "time": t.time,
+            "pet": t.pet_name,
+            "task": t.description,
+            "minutes": t.duration_minutes,
+            "priority": t.priority,
+            "frequency": t.frequency,
+            "status": "✅ Done" if t.completed else "⏳ Pending",
+        }
+        for t in tasks
+    ]
+
 
 st.title("🐾 PawPal+")
 
-owner.available_minutes = int(
-    st.number_input("Daily time budget (minutes)", min_value=1, max_value=1440, value=owner.available_minutes)
-)
+name_col, budget_col = st.columns(2)
+with name_col:
+    # A blank name keeps the current one.
+    owner.name = st.text_input("Owner name", value=owner.name).strip() or owner.name
+with budget_col:
+    owner.available_minutes = int(
+        st.number_input("Daily time budget (minutes)", min_value=1, max_value=1440, value=owner.available_minutes)
+    )
 
 st.divider()
 
@@ -69,29 +93,70 @@ else:
                 except ValueError as err:
                     st.error(str(err))
 
-all_tasks = owner.get_all_tasks()
-if all_tasks:
-    st.write("Current tasks:")
-    st.table(
-        [
-            {
-                "pet": t.pet_name,
-                "task": t.description,
-                "time": t.time,
-                "duration_minutes": t.duration_minutes,
-                "priority": t.priority,
-                "frequency": t.frequency,
-                "due": t.due_date.isoformat(),
-            }
-            for t in all_tasks
-        ]
+st.divider()
+
+# Placed above the task list so the table below reflects a completion on the same run.
+st.subheader("Mark a task complete")
+pending = scheduler.sort_by_time(scheduler.filter_tasks(completed=False))
+if not pending:
+    st.info("No pending tasks.")
+else:
+    labels = {t.task_id: f"{t.due_date.isoformat()} {t.time} - {t.pet_name}: {t.description}" for t in pending}
+    chosen_id = st.selectbox("Pending task", list(labels), format_func=labels.get)
+    if st.button("Mark complete"):
+        next_task = scheduler.mark_task_complete(chosen_id)
+        if next_task is not None:
+            st.success(
+                f"Completed. Next {next_task.frequency} occurrence of "
+                f"'{next_task.description}' ({next_task.pet_name}) added for {next_task.due_date.isoformat()}."
+            )
+        else:
+            st.success("Completed. No next occurrence (one-time task).")
+
+st.subheader("Task list")
+if not owner.get_all_tasks():
+    st.info("No tasks yet.")
+else:
+    filter_pet_col, filter_status_col = st.columns(2)
+    with filter_pet_col:
+        pet_filter = st.selectbox("Pet", ["All"] + [p.name for p in owner.pets], key="filter_pet")
+    with filter_status_col:
+        status_filter = st.selectbox("Status", ["All", "Pending", "Done"], key="filter_status")
+    visible = scheduler.sort_by_time(
+        scheduler.filter_tasks(
+            pet_name=None if pet_filter == "All" else pet_filter,
+            completed={"All": None, "Pending": False, "Done": True}[status_filter],
+        )
     )
+    if visible:
+        st.table(task_rows(visible))
+    else:
+        st.info("No tasks match these filters.")
 
 st.divider()
 
 st.subheader("Build Schedule")
 if st.button("Generate schedule"):
-    scheduler = Scheduler(owner)
     planned, skipped = scheduler.build_daily_plan(date.today())
-    for line in scheduler.explain_plan(planned, skipped):
-        st.write(line)
+
+    conflicts = scheduler.detect_conflicts(planned)
+    if conflicts:
+        for warning in conflicts:
+            st.warning(warning)
+        st.warning("Consider moving one of these tasks")
+    else:
+        st.success("No conflicts")
+
+    if planned:
+        st.table(task_rows(scheduler.sort_by_time(planned)))
+    else:
+        st.info("No tasks planned for today.")
+
+    if skipped:
+        st.subheader("Skipped tasks")
+        st.caption("These did not fit the remaining time budget.")
+        st.table(task_rows(skipped))
+
+    with st.expander("Why this plan?"):
+        for line in scheduler.explain_plan(planned, skipped):
+            st.write(line)
