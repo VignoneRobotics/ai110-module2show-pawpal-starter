@@ -16,6 +16,12 @@ def _to_minutes(time_str: str) -> int:
     return int(hours) * 60 + int(minutes)
 
 
+def _describe_range(task: Task) -> str:
+    """Return "Description HH:MM–HH:MM" for a task's start and end time."""
+    end = _to_minutes(task.time) + task.duration_minutes
+    return f"{task.description} {task.time}–{end // 60:02d}:{end % 60:02d}"
+
+
 @dataclass
 class Task:
     """A single pet-care task."""
@@ -136,6 +142,31 @@ class Scheduler:
 
     def detect_conflicts(self, tasks: list[Task] | None = None) -> list[str]:
         """Return warning strings for tasks with overlapping time ranges."""
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+        pending = [t for t in tasks if not t.completed]
+
+        warnings: list[str] = []
+        for i in range(len(pending)):
+            for j in range(i + 1, len(pending)):
+                a, b = pending[i], pending[j]
+                if a.due_date != b.due_date:
+                    continue
+                a_start = _to_minutes(a.time)
+                a_end = a_start + a.duration_minutes
+                b_start = _to_minutes(b.time)
+                b_end = b_start + b.duration_minutes
+                if a_start < b_end and b_start < a_end:
+                    if b_start < a_start:
+                        a, b = b, a
+                    if a.pet_name == b.pet_name:
+                        label = f"same pet: {a.pet_name}"
+                    else:
+                        label = f"cross-pet: {a.pet_name}, {b.pet_name}"
+                    warnings.append(
+                        f"Conflict ({label}): {_describe_range(a)} overlaps {_describe_range(b)}"
+                    )
+        return warnings
 
     def mark_task_complete(self, task_id: str) -> Task | None:
         """Complete a task, add its next occurrence if recurring, and return it or None."""

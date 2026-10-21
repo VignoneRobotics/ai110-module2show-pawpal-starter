@@ -32,6 +32,11 @@ def main() -> None:
     mochi.add_task(Task("Evening walk", "17:00", 25, "medium", due_date=today))
     bean.add_task(Task("Breakfast", "08:00", 15, "high", due_date=today))
     mochi.add_task(Task("Morning walk", "07:30", 30, "high", due_date=today))
+    # Morning walk 07:30-08:00 and Breakfast 08:00-08:15 are back-to-back: NOT a conflict.
+    # Same-pet overlap: Bath 17:15-17:45 vs Evening walk 17:00-17:25 (both Mochi).
+    mochi.add_task(Task("Bath", "17:15", 30, "medium", due_date=today))
+    # Cross-pet overlap: Training 12:05-12:25 (Mochi) vs Clean litter box 12:00-12:10 (Bean).
+    mochi.add_task(Task("Training", "12:05", 20, "medium", due_date=today))
 
     scheduler = Scheduler(owner)
 
@@ -76,6 +81,14 @@ def main() -> None:
     print("\nPlanned (in time order):")
     for task in scheduler.sort_by_time(planned):
         print(format_task(task))
+
+    print("\nConflicts among all pending tasks:")
+    for warning in scheduler.detect_conflicts() or ["(none)"]:
+        print(f"  ! {warning}")
+
+    print("\nConflicts within the planned tasks:")
+    for warning in scheduler.detect_conflicts(planned) or ["(none)"]:
+        print(f"  ! {warning}")
 
     print("\nSkipped:")
     if skipped:
