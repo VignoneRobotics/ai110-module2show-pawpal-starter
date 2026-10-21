@@ -371,6 +371,18 @@ def test_detect_conflicts_with_no_tasks_returns_empty_list():
     assert scheduler.detect_conflicts() == []
 
 
+def test_find_conflict_pairs_returns_earlier_task_first():
+    """Pairs come back (earlier, later) even if added in reverse; back-to-back and completed are excluded."""
+    scheduler, mochi, bean = make_scheduler()
+    bath = add(mochi, "Bath", "08:15", 30)  # added first but starts later
+    walk = add(mochi, "Walk", "08:00", 30)
+    add(bean, "Feed", "08:45", 15)  # back-to-back with Bath: no conflict
+    done = add(bean, "Done", "08:10", 30)
+    done.mark_complete()
+    assert scheduler.find_conflict_pairs() == [(walk, bath)]
+    assert len(scheduler.detect_conflicts()) == 1
+
+
 # --- Daily plan / budget ---
 
 
