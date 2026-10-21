@@ -127,7 +127,7 @@ else:
     labels = {t.task_id: f"{t.due_date.isoformat()} {t.time} - {t.pet_name}: {t.description}" for t in pending}
     chosen_id = st.selectbox("Pending task", list(labels), format_func=labels.get)
     if st.button("Mark complete"):
-        next_task = scheduler.mark_task_complete(chosen_id)
+        next_task = scheduler.mark_task_complete(chosen_id, today=date.today())
         save()
         if next_task is not None:
             st.session_state["flash"] = (

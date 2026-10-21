@@ -267,6 +267,68 @@ def test_completing_weekly_task_creates_copy_seven_days_later():
     assert new_task.due_date == DAY + timedelta(days=7)
 
 
+def test_late_daily_task_skips_to_day_after_completion():
+    """A daily task completed 4 days late gets a copy due the day after today."""
+    task = Task("Walk", "08:00", 30, frequency="daily", due_date=DAY)
+    today = DAY + timedelta(days=4)
+    assert task.next_occurrence(today).due_date == today + timedelta(days=1)
+
+
+def test_late_weekly_task_keeps_its_weekday():
+    """A weekly task completed 3 weeks late skips ahead in whole weeks, on the same weekday."""
+    task = Task("Bath", "10:00", 30, frequency="weekly", due_date=DAY)
+    today = DAY + timedelta(days=17)
+    next_task = task.next_occurrence(today)
+    assert next_task.due_date == DAY + timedelta(days=21)
+    assert next_task.due_date.weekday() == DAY.weekday()
+
+
+def test_completing_exactly_on_cadence_date_moves_one_interval():
+    """Completing on the due date itself moves the copy one interval ahead (daily and weekly)."""
+    daily = Task("Walk", "08:00", 30, frequency="daily", due_date=DAY)
+    weekly = Task("Bath", "10:00", 30, frequency="weekly", due_date=DAY)
+    assert daily.next_occurrence(DAY).due_date == DAY + timedelta(days=1)
+    assert weekly.next_occurrence(DAY).due_date == DAY + timedelta(days=7)
+
+
+def test_next_candidate_equal_to_today_moves_to_day_after():
+    """If the plain next due date equals today, the copy is due one interval after today."""
+    daily = Task("Walk", "08:00", 30, frequency="daily", due_date=DAY)
+    weekly = Task("Bath", "10:00", 30, frequency="weekly", due_date=DAY)
+    assert daily.next_occurrence(DAY + timedelta(days=1)).due_date == DAY + timedelta(days=2)
+    assert weekly.next_occurrence(DAY + timedelta(days=7)).due_date == DAY + timedelta(days=14)
+
+
+def test_early_or_on_time_completion_is_unchanged():
+    """With no today, or today on or before the due date, the copy is due_date + one interval."""
+    task = Task("Walk", "08:00", 30, frequency="daily", due_date=DAY)
+    assert task.next_occurrence().due_date == NEXT_DAY
+    assert task.next_occurrence(DAY - timedelta(days=3)).due_date == NEXT_DAY
+    assert task.next_occurrence(DAY).due_date == NEXT_DAY
+
+
+def test_once_task_returns_none_even_when_late():
+    """A one-off task has no next occurrence however late it is completed."""
+    task = Task("Vet", "10:00", 60, due_date=DAY)
+    assert task.next_occurrence(DAY + timedelta(days=30)) is None
+
+
+def test_scheduler_adds_skipped_ahead_copy_to_same_pet():
+    """mark_task_complete(today=...) adds the skipped-ahead copy, with a new id, to the owning pet."""
+    scheduler, mochi, bean = make_scheduler()
+    walk = add(mochi, "Walk", "08:00", 30, frequency="daily")
+    today = DAY + timedelta(days=10)
+
+    new_task = scheduler.mark_task_complete(walk.task_id, today=today)
+
+    assert new_task.due_date == today + timedelta(days=1)
+    assert new_task.task_id != walk.task_id
+    assert new_task.pet_name == "Mochi"
+    assert walk.completed is True
+    assert len(mochi.get_tasks()) == 2
+    assert bean.get_tasks() == []
+
+
 def test_completing_once_task_creates_no_copy():
     """Completing a one-off task returns None and adds nothing."""
     scheduler, mochi, _ = make_scheduler()

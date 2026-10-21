@@ -79,8 +79,8 @@ def main() -> None:
     scheduler = Scheduler(owner)
 
     # Complete a daily task: it stays as history and spawns tomorrow's copy.
-    next_brush = scheduler.mark_task_complete(brush.task_id)
-    repeat_call = scheduler.mark_task_complete(brush.task_id)
+    next_brush = scheduler.mark_task_complete(brush.task_id, today=today)
+    repeat_call = scheduler.mark_task_complete(brush.task_id, today=today)
 
     planned, skipped = scheduler.build_daily_plan(today)
 

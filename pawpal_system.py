@@ -87,16 +87,16 @@ class Task:
         """Mark this task as completed."""
         self.completed = True
 
-    def next_occurrence(self) -> Task | None:
-        """Return a new task for the next recurrence, or None if frequency is "once"."""
+    def next_occurrence(self, today: date | None = None) -> Task | None:
+        """Return the next recurrence (strictly after today, if given), or None for "once"."""
         if self.frequency not in FREQUENCY_DAYS:
             return None
-        return replace(
-            self,
-            task_id=uuid.uuid4().hex[:8],
-            completed=False,
-            due_date=self.due_date + timedelta(days=FREQUENCY_DAYS[self.frequency]),
-        )
+        step = timedelta(days=FREQUENCY_DAYS[self.frequency])
+        next_due = self.due_date + step
+        if today is not None:
+            while next_due <= today:  # completed late: skip the missed occurrences
+                next_due += step
+        return replace(self, task_id=uuid.uuid4().hex[:8], completed=False, due_date=next_due)
 
 
 @dataclass
@@ -263,8 +263,8 @@ class Scheduler:
             return _to_hhmm(cursor)
         return None
 
-    def mark_task_complete(self, task_id: str) -> Task | None:
-        """Complete a task, add its next occurrence if recurring, and return it or None."""
+    def mark_task_complete(self, task_id: str, today: date | None = None) -> Task | None:
+        """Complete a task, add its next occurrence (after today, if given) if recurring, and return it or None."""
         found = self.owner.find_task(task_id)
         if found is None:
             return None
@@ -272,7 +272,7 @@ class Scheduler:
         if task.completed:
             return None
         task.mark_complete()
-        next_task = task.next_occurrence()
+        next_task = task.next_occurrence(today)
         if next_task is not None:
             pet.add_task(next_task)
         return next_task
