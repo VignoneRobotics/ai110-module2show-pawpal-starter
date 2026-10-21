@@ -1,9 +1,10 @@
 from datetime import date
+from itertools import combinations
 from pathlib import Path
 
 import streamlit as st
 
-from pawpal_system import Owner, Pet, Task, Scheduler
+from pawpal_system import Owner, Pet, Task, Scheduler, _time_range
 
 DATA_FILE = Path(__file__).parent / "data.json"
 
@@ -158,6 +159,14 @@ else:
     else:
         st.info("No tasks match these filters.")
 
+st.subheader("Find a free slot")
+slot_minutes = int(st.number_input("Task duration (minutes)", min_value=1, max_value=240, value=30, key="slot_minutes"))
+free_slot = scheduler.next_available_slot(slot_minutes, date.today())
+if free_slot is not None:
+    st.success(f"Next free slot today: {free_slot}")
+else:
+    st.warning("No free slot today for that duration.")
+
 st.divider()
 
 st.subheader("Build Schedule")
@@ -170,8 +179,19 @@ if st.session_state.get("show_plan"):
 
     conflicts = scheduler.detect_conflicts(planned)
     if conflicts:
-        for warning in conflicts:
+        # detect_conflicts returns text only; recover each pair's later task in the same order.
+        later_tasks = []
+        for a, b in combinations(planned, 2):
+            (a_start, a_end), (b_start, b_end) = _time_range(a), _time_range(b)
+            if a.due_date == b.due_date and a_start < b_end and b_start < a_end:
+                later_tasks.append(a if a_start > b_start else b)
+        for warning, later in zip(conflicts, later_tasks):
             st.warning(warning)
+            slot = scheduler.next_available_slot(later.duration_minutes, later.due_date)
+            if slot is not None:
+                st.info(f"💡 Suggestion: move '{later.description}' to {slot}.")
+            else:
+                st.info(f"💡 No free slot left for '{later.description}' that day.")
         st.warning("Consider moving one of these tasks")
     else:
         st.success("No conflicts")

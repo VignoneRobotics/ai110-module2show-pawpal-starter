@@ -20,6 +20,11 @@ def _to_minutes(time_str: str) -> int:
     return int(hours) * 60 + int(minutes)
 
 
+def _to_hhmm(minutes: int) -> str:
+    """Convert minutes since midnight to a zero-padded "HH:MM" string."""
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
 def _describe_range(task: Task) -> str:
     """Return "Description HH:MM-HH:MM" for a task's start and end time."""
     end = _to_minutes(task.time) + task.duration_minutes
@@ -229,6 +234,31 @@ class Scheduler:
                 first, second = (a, b) if a_start <= b_start else (b, a)
                 warnings.append(_conflict_warning(first, second))
         return warnings
+
+    def next_available_slot(
+        self,
+        duration_minutes: int,
+        day: date,
+        window_start: str = "07:00",
+        window_end: str = "22:00",
+    ) -> str | None:
+        """Return the first "HH:MM" where a task of this length fits on the day, or None."""
+        if duration_minutes <= 0:
+            raise ValueError(f"Duration must be positive, got {duration_minutes}")
+        busy = sorted(
+            _time_range(t)
+            for t in self.owner.get_all_tasks()
+            if t.due_date == day and not t.completed
+        )
+        cursor = _to_minutes(window_start)
+        limit = _to_minutes(window_end)
+        for start, end in busy:
+            if cursor + duration_minutes <= min(start, limit):  # back-to-back is allowed
+                return _to_hhmm(cursor)
+            cursor = max(cursor, end)
+        if cursor + duration_minutes <= limit:
+            return _to_hhmm(cursor)
+        return None
 
     def mark_task_complete(self, task_id: str) -> Task | None:
         """Complete a task, add its next occurrence if recurring, and return it or None."""

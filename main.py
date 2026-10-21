@@ -137,6 +137,11 @@ def main() -> None:
     used = sum(t.duration_minutes for t in planned)
     print(f"\nPlanned {used} of {owner.available_minutes} min.")
 
+    print("\nNext available slot (today, window 07:00-22:00):")
+    for minutes in (30, 45, 240, 300):
+        slot = scheduler.next_available_slot(minutes, today)
+        print(f"  {minutes:>3} min -> {slot or '(none)'}")
+
     print("\nSave/load round trip (temp file):")
     round_trip_demo(owner)
 

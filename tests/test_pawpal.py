@@ -538,3 +538,71 @@ def test_load_invalid_task_data_raises_value_error(tmp_path, field_name, value):
     path.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(ValueError):
         Owner.load_from_json(path)
+
+
+# --- Next available slot ---
+
+
+def test_next_slot_on_empty_day_is_window_start():
+    """With nothing scheduled, the first slot is the start of the window."""
+    scheduler, _, _ = make_scheduler()
+    assert scheduler.next_available_slot(30, DAY) == "07:00"
+    assert scheduler.next_available_slot(30, DAY, window_start="09:15") == "09:15"
+
+
+def test_next_slot_finds_gap_between_tasks():
+    """A task fits in the gap between two tasks; a longer one goes after the last task."""
+    scheduler, mochi, bean = make_scheduler()
+    add(mochi, "First", "07:00", 60)
+    add(bean, "Second", "09:00", 60)
+    assert scheduler.next_available_slot(45, DAY) == "08:00"
+    assert scheduler.next_available_slot(61, DAY) == "10:00"
+
+
+def test_next_slot_fits_exactly_back_to_back():
+    """A task that exactly fills the gap (touching both neighbours) is allowed."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "First", "07:00", 60)
+    add(mochi, "Second", "08:30", 30)
+    assert scheduler.next_available_slot(30, DAY) == "08:00"
+    assert scheduler.next_available_slot(31, DAY) == "09:00"
+
+
+def test_next_slot_returns_none_when_no_room():
+    """If every gap is too small, the result is None."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "All morning", "07:00", 120)
+    assert scheduler.next_available_slot(30, DAY, window_start="07:00", window_end="09:00") is None
+
+
+def test_next_slot_ignores_completed_tasks_and_other_days():
+    """Completed tasks and tasks due on other days do not block the slot."""
+    scheduler, mochi, _ = make_scheduler()
+    done = add(mochi, "Done already", "07:00", 60)
+    done.mark_complete()
+    add(mochi, "Tomorrow", "07:00", 60, due=NEXT_DAY)
+    assert scheduler.next_available_slot(60, DAY) == "07:00"
+
+
+def test_next_slot_respects_window_end():
+    """A slot must end by window_end, even if the gap before the next task is larger."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "Most of the day", "07:00", 14 * 60)  # 07:00-21:00
+    assert scheduler.next_available_slot(60, DAY) == "21:00"  # ends exactly at 22:00
+    assert scheduler.next_available_slot(90, DAY) is None
+    add(mochi, "After the window", "09:00", 30, due=NEXT_DAY)
+    assert scheduler.next_available_slot(90, NEXT_DAY, window_start="07:00", window_end="08:00") is None
+
+
+def test_next_slot_skips_past_task_that_starts_before_window():
+    """A task that began before window_start still blocks until it ends."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "Early", "06:00", 90)  # 06:00-07:30
+    assert scheduler.next_available_slot(30, DAY) == "07:30"
+
+
+def test_next_slot_rejects_non_positive_duration():
+    """A zero or negative duration raises ValueError."""
+    scheduler, _, _ = make_scheduler()
+    with pytest.raises(ValueError):
+        scheduler.next_available_slot(0, DAY)
