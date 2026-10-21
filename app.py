@@ -1,10 +1,9 @@
 from datetime import date
-from itertools import combinations
 from pathlib import Path
 
 import streamlit as st
 
-from pawpal_system import Owner, Pet, Task, Scheduler, _time_range
+from pawpal_system import Owner, Pet, Task, Scheduler
 
 DATA_FILE = Path(__file__).parent / "data.json"
 
@@ -179,13 +178,9 @@ if st.session_state.get("show_plan"):
 
     conflicts = scheduler.detect_conflicts(planned)
     if conflicts:
-        # detect_conflicts returns text only; recover each pair's later task in the same order.
-        later_tasks = []
-        for a, b in combinations(planned, 2):
-            (a_start, a_end), (b_start, b_end) = _time_range(a), _time_range(b)
-            if a.due_date == b.due_date and a_start < b_end and b_start < a_end:
-                later_tasks.append(a if a_start > b_start else b)
-        for warning, later in zip(conflicts, later_tasks):
+        # Warnings are built from the pairs, so the two lists line up one to one.
+        pairs = scheduler.find_conflict_pairs(planned)
+        for warning, (_, later) in zip(conflicts, pairs):
             st.warning(warning)
             slot = scheduler.next_available_slot(later.duration_minutes, later.due_date)
             if slot is not None:

@@ -218,22 +218,25 @@ class Scheduler:
             result = [t for t in result if t.completed == completed]
         return result
 
-    def detect_conflicts(self, tasks: list[Task] | None = None) -> list[str]:
-        """Return warning strings for tasks with overlapping time ranges."""
+    def find_conflict_pairs(self, tasks: list[Task] | None = None) -> list[tuple[Task, Task]]:
+        """Return (earlier, later) pairs of pending same-day tasks with overlapping time ranges."""
         if tasks is None:
             tasks = self.owner.get_all_tasks()
         pending = [t for t in tasks if not t.completed]
 
-        warnings: list[str] = []
+        pairs: list[tuple[Task, Task]] = []
         for a, b in combinations(pending, 2):  # each pair is checked once
             if a.due_date != b.due_date:
                 continue
             a_start, a_end = _time_range(a)
             b_start, b_end = _time_range(b)
             if a_start < b_end and b_start < a_end:
-                first, second = (a, b) if a_start <= b_start else (b, a)
-                warnings.append(_conflict_warning(first, second))
-        return warnings
+                pairs.append((a, b) if a_start <= b_start else (b, a))
+        return pairs
+
+    def detect_conflicts(self, tasks: list[Task] | None = None) -> list[str]:
+        """Return warning strings for tasks with overlapping time ranges."""
+        return [_conflict_warning(first, second) for first, second in self.find_conflict_pairs(tasks)]
 
     def next_available_slot(
         self,
