@@ -54,17 +54,20 @@ else:
                 st.error("Description and time are required.")
             else:
                 pet = owner.get_pet(chosen_pet)
-                pet.add_task(
-                    Task(
-                        description=description.strip(),
-                        time=task_time.strftime("%H:%M"),
-                        duration_minutes=int(duration),
-                        priority=priority,
-                        frequency=frequency,
-                        due_date=due,
+                try:
+                    pet.add_task(
+                        Task(
+                            description=description.strip(),
+                            time=task_time.strftime("%H:%M"),
+                            duration_minutes=int(duration),
+                            priority=priority,
+                            frequency=frequency,
+                            due_date=due,
+                        )
                     )
-                )
-                st.success(f"Added task to {pet.name}.")
+                    st.success(f"Added task to {pet.name}.")
+                except ValueError as err:
+                    st.error(str(err))
 
 all_tasks = owner.get_all_tasks()
 if all_tasks:

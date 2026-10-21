@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
@@ -51,6 +52,29 @@ class Task:
     task_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     completed: bool = False
     pet_name: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject a malformed time, unknown priority/frequency, bad duration, or a task past midnight."""
+        if not re.fullmatch(r"[0-9]{2}:[0-9]{2}", self.time):
+            raise ValueError(f"Invalid time {self.time!r}: use zero-padded HH:MM (00:00-23:59)")
+        hours, minutes = int(self.time[:2]), int(self.time[3:])
+        if hours > 23 or minutes > 59:
+            raise ValueError(f"Invalid time {self.time!r}: hour must be 00-23 and minute 00-59")
+        if self.priority not in PRIORITY_RANK:
+            raise ValueError(
+                f"Unknown priority {self.priority!r}: use {', '.join(PRIORITY_RANK)}"
+            )
+        if self.frequency != "once" and self.frequency not in FREQUENCY_DAYS:
+            raise ValueError(
+                f"Unknown frequency {self.frequency!r}: use once, {', '.join(FREQUENCY_DAYS)}"
+            )
+        if self.duration_minutes <= 0:
+            raise ValueError(f"Duration must be positive, got {self.duration_minutes}")
+        if _to_minutes(self.time) + self.duration_minutes > 24 * 60:
+            raise ValueError(
+                f"Task {self.description!r} at {self.time} for {self.duration_minutes} min "
+                "runs past midnight"
+            )
 
     def mark_complete(self) -> None:
         """Mark this task as completed."""
