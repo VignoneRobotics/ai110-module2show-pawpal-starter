@@ -180,12 +180,15 @@ I gave Claude Opus 5.5 and Claude Sonnet 5.5 the same prompt about late-complete
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Run `streamlit run app.py`. A browser tab opens at `localhost:8501`.
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+1. **Set up the owner.** At the top, type the owner's name (for example "Kyle") and set the daily time budget, for example 75 minutes. Changes are saved to `data.json` right away.
+2. **Add pets.** Under "Add a pet", add "Mochi" (dog) and "Bean" (cat). Adding "mochi" again shows a red error instead of crashing, because pet names must be unique.
+3. **Add tasks.** Under "Add a task", pick a pet and enter a description, time, duration, priority and frequency. Due dates default to today. For the demo, add a high-priority 07:30 walk for Mochi, a high-priority 08:00 breakfast for Bean, a daily 12:00 litter-box task for Bean, a 12:05 training session for Mochi (it overlaps the litter box), and a long low-priority 19:00 playtime. Entering 23:30 with a 45-minute duration shows an error, because tasks can't run past midnight.
+4. **Browse the task list.** The "Task list" table is always sorted by date and time. Use the Pet and Status dropdowns to show one pet's tasks or only pending/done tasks.
+5. **Complete a recurring task.** Under "Mark a task complete", pick the daily litter-box task and click "Mark complete". A green message confirms it and names tomorrow's new copy, which appears in the task list; the finished task stays listed as ✅ Done.
+6. **Find a free slot.** Under "Find a free slot", enter a duration (for example 45 minutes) to see the first gap in today's schedule where it fits.
+7. **Generate the schedule.** Click "Generate schedule". Conflict warnings appear first (Training overlaps the litter box, across two pets), each with a 💡 suggested free time for the later task. Below them is the plan in time order, a "Skipped tasks" table for anything that didn't fit the budget, and a "Why this plan?" expander that explains each decision.
+8. **Restart the app.** Stop it with Ctrl+C and run `streamlit run app.py` again. Your owner, pets and tasks are reloaded from `data.json`.
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
