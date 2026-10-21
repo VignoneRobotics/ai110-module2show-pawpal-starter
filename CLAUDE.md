@@ -42,27 +42,30 @@ Methods: `mark_complete()`, `next_occurrence() -> Task | None` (new task, new id
 Methods: `add_task(task)` (stamps `task.pet_name = self.name`), `remove_task(task_id)`, `get_tasks()`.
 
 **Owner**: `name`, `available_minutes` (daily time budget), `pets: list[Pet]`.
-Methods: `add_pet(pet)`, `get_pet(name)`, `get_all_tasks()` (every task across every pet).
+Methods: `add_pet(pet)` (raises `ValueError` on a duplicate pet name), `get_pet(name) -> Pet | None`, `get_all_tasks()` (every task across every pet), `find_task(task_id) -> tuple[Pet, Task] | None` (task plus its owning pet).
 
 **Scheduler**: holds `owner`. **Always reads tasks via `owner.get_all_tasks()`**, never from a single pet (rubric: multi-pet).
 Every method that takes `tasks` treats it as optional: `None` means "all owner tasks", so calls compose, e.g. `sort_by_time(filter_tasks(pet_name="Mochi"))`.
-- `sort_by_time(tasks)` — `sorted(..., key=lambda t: t.time)`
+- `sort_by_time(tasks)` — `sorted(..., key=lambda t: (t.time, PRIORITY_RANK[t.priority], t.description))` (deterministic tie-break)
 - `filter_tasks(tasks, pet_name=None, completed=None)`
 - `detect_conflicts(tasks)` — flags **overlapping time ranges** (start + duration), across all pets; label each warning same-pet vs cross-pet.
-- `mark_task_complete(task_id)` — marks complete, **keeps the completed task** (history), and if recurring adds `next_occurrence()` to the same pet; returns the new task or None.
-- `build_daily_plan(day)` — only tasks due on `day` and not completed; greedy: priority first, then time; add until `available_minutes` is used up. Returns `(planned, skipped)`.
-- `explain_plan(planned, skipped)` — human-readable reasons (why included / why skipped).
+- `mark_task_complete(task_id)` — looks up via `owner.find_task`; marks complete, **keeps the completed task** (history), and if recurring adds `next_occurrence()` to the same pet; returns the new task or None. If the task is already completed (or not found), do nothing and return None (no duplicate next occurrence).
+- `build_daily_plan(day)` — only tasks due on `day` and not completed; greedy first-fit: order by priority, then time; if a task doesn't fit the remaining budget, **skip it and continue** (never `break`). Returns `(planned, skipped)`. It does **not** drop overlapping tasks — conflicts are warnings only (callers run `detect_conflicts(planned)`).
+- `explain_plan(planned, skipped)` — human-readable reasons. Recomputes from `self.owner.available_minutes` by walking `planned` in order. The only skip reason is "didn't fit the remaining budget" (not-due tasks are never in `skipped`), so no extra parameters are needed.
 
 Relationships: Owner 1 → * Pet (aggregation); Pet 1 → * Task (composition); Scheduler → Owner (uses).
 
-Known tradeoffs (for reflection): greedy plan can miss a better combination; `pet_name` duplicated on Task for simple filtering; time stored as text, not datetime (rejected a single `datetime` field to follow the assignment's HH:MM sorting); task list grows because completed tasks are kept.
+Known tradeoffs (for reflection): plan and conflict checks are separate (an overlapping pair can both be planned, with a warning); greedy plan can miss a better combination; `pet_name` duplicated on Task for simple filtering; time stored as text, not datetime (rejected a single `datetime` field to follow the assignment's HH:MM sorting); task list grows because completed tasks are kept.
+
+## Design change log (facts for reflection 1b — Kyle writes the reflection)
+- After the Phase 1 skeleton review (Sonnet 5.5): **accepted** adding `Owner.find_task` (scheduler needed the owning pet); **accepted** skip-and-continue for the budget; **chose** warn-only conflicts; **partly rejected** the suggestion that `explain_plan` needs the day or that `build_daily_plan` must return reasons — with warn-only conflicts the only skip reason is the budget, so it can be recomputed and signatures stay unchanged.
 
 ## Phase plan
 1. **Design** — UML draft (`diagrams/uml.mmd`), class skeletons in `pawpal_system.py` (attributes + empty stubs). Ask AI to review the skeleton for missing relationships.
-2. **Core implementation** — implement the four classes; `main.py` demo with readable output; tests: `mark_complete()` changes status, `add_task()` increases count.
+2. **Core implementation** — implement the four classes (incl. duplicate-pet-name rejection, `find_task`, `next_occurrence` from `due_date` not `date.today()`, double-complete guard); `main.py` demo with readable output; tests: `mark_complete()` changes status, `add_task()` increases count.
 3. **UI integration** — import into `app.py`; store `Owner` in `st.session_state` (create only if missing); wire "Add pet" and "Add task" forms to class methods. Replace the starter's dict-based task list.
 4. **Algorithms** — sorting, filtering, recurrence (timedelta), conflict detection; update `main.py` with out-of-order and overlapping tasks; README "Smarter Scheduling" table naming each method.
-5. **Testing** — sorting correctness, daily recurrence creates the next-day task, conflict detection flags overlaps, plus edge cases (pet with no tasks, exact same time, plan only uses tasks due that day, budget exhausted). Light input validation in `__post_init__`.
+5. **Testing** — tests always pass `due_date` explicitly (default is `date.today()`, which makes tests date-dependent). Sorting correctness, daily recurrence creates the next-day task, conflict detection flags overlaps, plus edge cases (pet with no tasks, exact same time, plan only uses tasks due that day, budget exhausted). Light input validation in `__post_init__`: valid HH:MM, known priority/frequency, positive duration, and reject tasks that run past midnight (start + duration > 24:00).
 6. **Polish** — Streamlit shows sorted plan, `st.warning` for conflicts, `st.table`/`st.success`; update `uml.mmd` to final; README Features + Demo Walkthrough + CLI sample.
 
 ### Stretch (all five planned, after the core works)
