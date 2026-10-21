@@ -42,16 +42,52 @@ pip install -r requirements.txt
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
 
+## Implementation
+
+The logic layer lives in `pawpal_system.py` as four classes; `main.py` is a CLI demo of them.
+
+- **Task** (dataclass): one care activity with a description, `"HH:MM"` time, duration, priority, frequency, due date, completed flag, and the owning pet's name. `mark_complete()` sets the completed flag.
+- **Pet** (dataclass): a pet and its list of tasks. `add_task()` stamps each task with the pet's name.
+- **Owner**: a person with a daily time budget (`available_minutes`) and a list of pets. It rejects duplicate pet names and provides `get_all_tasks()` and `find_task()`.
+- **Scheduler**: holds an owner and builds the plan. `build_daily_plan(day)` takes tasks due that day that are not completed, orders them by priority then time, and adds each one that fits the remaining time budget. `explain_plan()` gives a reason for every planned and skipped task.
+
+**How they connect:** an Owner has many Pets, each Pet has many Tasks, and the Scheduler reads every task through `owner.get_all_tasks()`, so a plan covers all of the owner's pets.
+
+**Status:** `sort_by_time`, `filter_tasks`, `detect_conflicts`, `Task.next_occurrence` and `Scheduler.mark_task_complete` are stubs until Phase 4.
+
+```bash
+python main.py       # print today's schedule
+python -m pytest     # run the tests
+```
+
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Output of `python main.py` (one owner, two pets, five tasks, 75-minute budget):
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+========================================================
+Today's Schedule - 2026-10-20
+Owner: Kyle | Pets: Mochi, Bean
+Time available: 75 min
+========================================================
+
+Planned (in time order):
+  07:30  Morning walk (Mochi)  30 min  high
+  08:00  Breakfast (Bean)  15 min  high
+  12:00  Clean litter box (Bean)  10 min  medium
+  18:00  Brush coat (Mochi)  20 min  low
+
+Skipped:
+  19:00  Laser playtime (Bean)  40 min  low
+
+Why:
+  - Planned: Morning walk (Mochi) at 07:30, 30 min, high priority - fits in the 75-minute budget.
+  - Planned: Breakfast (Bean) at 08:00, 15 min, high priority - fits in the 75-minute budget.
+  - Planned: Clean litter box (Bean) at 12:00, 10 min, medium priority - fits in the 75-minute budget.
+  - Planned: Brush coat (Mochi) at 18:00, 20 min, low priority - fits in the 75-minute budget.
+  - Skipped: Laser playtime (Bean) at 19:00 needs 40 min; did not fit in the 75-minute budget (planned tasks use 75).
+
+Planned 75 of 75 min.
 ```
 
 ## 🧪 Testing PawPal+
