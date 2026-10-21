@@ -92,17 +92,51 @@ Planned 75 of 75 min.
 
 ```bash
 # Run the full test suite:
-pytest
+python -m pytest
 
-# Run with coverage:
-pytest --cov
+# Verbose, one line per test:
+python -m pytest -v
 ```
 
-Sample test output:
+### What the tests cover
+
+All 54 tests live in `tests/test_pawpal.py`, use fixed dates with an explicit `due_date`, and are grouped like the file:
+
+- **Validation:** bad `HH:MM` times (such as `7:30` and `25:00`), unknown priority or frequency, duration of 0 or less, and tasks that run past midnight. A task ending exactly at 24:00 is allowed.
+- **Owner / Pet:** duplicate pet names rejected (case-insensitive), `get_pet`, `get_all_tasks` across pets, `remove_task`, `find_task`.
+- **Sorting:** chronological order, priority tie-break, next-day tasks sorting after today's, an empty owner, and sorting a filtered list.
+- **Filtering:** by pet (case-insensitive), by completion status, and both combined.
+- **Recurrence:** daily (+1 day) and weekly (+7 days) completion creates the next task, "once" does not, completing twice adds no duplicate, and an unknown id is ignored.
+- **Conflicts:** exact warning text for same-pet and cross-pet overlaps, same start time, back-to-back tasks (in both insertion orders) are not a conflict, tasks on different days and completed tasks are ignored, and each pair is reported once.
+- **Daily plan:** only pending tasks due that day, priority selection within the budget, an oversized task skipped while later ones still fit, exact-fit and zero budgets, overlapping tasks planned with a warning, and the `explain_plan` text.
+
+**Mutation check:** temporarily changing `<` to `<=` in `detect_conflicts` exposed a missing test, because the existing back-to-back test only added the earlier task first; `test_back_to_back_tasks_do_not_conflict_reverse_order` now covers it.
+
+Sample test output (middle trimmed):
 
 ```
-# Paste your pytest output here
+============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-9.1.1, pluggy-1.7.0
+cachedir: .pytest_cache
+rootdir: <repo>
+plugins: anyio-4.15.1
+collecting ... collected 54 items
+
+tests/test_pawpal.py::test_mark_complete_sets_completed_true PASSED      [  1%]
+tests/test_pawpal.py::test_add_task_increases_count_and_stamps_pet_name PASSED [  3%]
+tests/test_pawpal.py::test_task_rejects_bad_time[7:30] PASSED            [  5%]
+...
+tests/test_pawpal.py::test_back_to_back_tasks_do_not_conflict PASSED     [ 72%]
+tests/test_pawpal.py::test_back_to_back_tasks_do_not_conflict_reverse_order PASSED [ 74%]
+...
+tests/test_pawpal.py::test_explain_plan_has_one_line_per_task_and_mentions_budget PASSED [100%]
+
+============================= 54 passed in 0.14s ==============================
 ```
+
+**Confidence Level:** ★★★★☆
+
+4/5: 54 tests cover the core behaviors and edge cases, and a deliberate mutation confirmed they catch real bugs; one star off because the Streamlit UI is only tested by hand and the daily plan is greedy rather than optimal.
 
 ## 📐 Smarter Scheduling
 
