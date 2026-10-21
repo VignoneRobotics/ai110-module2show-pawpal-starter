@@ -12,6 +12,8 @@ FREQUENCY_DAYS = {"daily": 1, "weekly": 7}
 
 def _to_minutes(time_str: str) -> int:
     """Convert a zero-padded "HH:MM" string to minutes since midnight."""
+    hours, minutes = time_str.split(":")
+    return int(hours) * 60 + int(minutes)
 
 
 @dataclass
@@ -30,6 +32,7 @@ class Task:
 
     def mark_complete(self) -> None:
         """Mark this task as completed."""
+        self.completed = True
 
     def next_occurrence(self) -> Task | None:
         """Return a new task for the next recurrence, or None if frequency is "once"."""
@@ -46,12 +49,16 @@ class Pet:
 
     def add_task(self, task: Task) -> None:
         """Add a task to this pet and stamp it with the pet's name."""
+        task.pet_name = self.name
+        self.tasks.append(task)
 
     def remove_task(self, task_id: str) -> None:
         """Remove the task with the given id from this pet."""
+        self.tasks = [t for t in self.tasks if t.task_id != task_id]
 
     def get_tasks(self) -> list[Task]:
         """Return all tasks belonging to this pet."""
+        return list(self.tasks)
 
 
 @dataclass
@@ -63,13 +70,29 @@ class Owner:
     pets: list[Pet] = field(default_factory=list)
 
     def add_pet(self, pet: Pet) -> None:
-        """Add a pet to this owner."""
+        """Add a pet to this owner, rejecting a duplicate name."""
+        if self.get_pet(pet.name) is not None:
+            raise ValueError(f"Owner already has a pet named {pet.name!r}")
+        self.pets.append(pet)
 
     def get_pet(self, name: str) -> Pet | None:
-        """Return the pet with the given name, or None if not found."""
+        """Return the pet with the given name (case-insensitive), or None if not found."""
+        for pet in self.pets:
+            if pet.name.lower() == name.lower():
+                return pet
+        return None
 
     def get_all_tasks(self) -> list[Task]:
         """Return every task across every pet."""
+        return [task for pet in self.pets for task in pet.get_tasks()]
+
+    def find_task(self, task_id: str) -> tuple[Pet, Task] | None:
+        """Return the (pet, task) pair for the given task id, or None if not found."""
+        for pet in self.pets:
+            for task in pet.tasks:
+                if task.task_id == task_id:
+                    return pet, task
+        return None
 
 
 @dataclass
@@ -97,6 +120,39 @@ class Scheduler:
 
     def build_daily_plan(self, day: date) -> tuple[list[Task], list[Task]]:
         """Return (planned, skipped) tasks for the day, within the owner's time budget."""
+        due = [
+            t for t in self.owner.get_all_tasks()
+            if t.due_date == day and not t.completed
+        ]
+        due.sort(key=lambda t: (PRIORITY_RANK[t.priority], _to_minutes(t.time)))
+
+        planned: list[Task] = []
+        skipped: list[Task] = []
+        remaining = self.owner.available_minutes
+        for task in due:
+            if task.duration_minutes <= remaining:
+                planned.append(task)
+                remaining -= task.duration_minutes
+            else:
+                skipped.append(task)
+        return planned, skipped
 
     def explain_plan(self, planned: list[Task], skipped: list[Task]) -> list[str]:
         """Return human-readable reasons for each included and skipped task."""
+        if not planned and not skipped:
+            return ["No tasks due."]
+
+        budget = self.owner.available_minutes
+        used = sum(t.duration_minutes for t in planned)
+        lines = [
+            f"Planned: {t.description} ({t.pet_name}) at {t.time}, "
+            f"{t.duration_minutes} min, {t.priority} priority - fits in the {budget}-minute budget."
+            for t in planned
+        ]
+        lines += [
+            f"Skipped: {t.description} ({t.pet_name}) at {t.time} needs "
+            f"{t.duration_minutes} min; did not fit in the {budget}-minute budget "
+            f"(planned tasks use {used})."
+            for t in skipped
+        ]
+        return lines
