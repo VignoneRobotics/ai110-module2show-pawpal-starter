@@ -1,16 +1,29 @@
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
 from pawpal_system import Owner, Pet, Task, Scheduler
 
+DATA_FILE = Path(__file__).parent / "data.json"
+
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
-# Create the single Owner once; later reruns reuse the stored object.
+# Create the single Owner once (from data.json if it exists); later reruns reuse the stored object.
 if "owner" not in st.session_state:
     st.session_state.owner = Owner(name="Jordan")
+    if DATA_FILE.exists():
+        try:
+            st.session_state.owner = Owner.load_from_json(DATA_FILE)
+        except ValueError as err:
+            st.warning(f"Could not read {DATA_FILE.name} ({err}); starting fresh.")
 owner: Owner = st.session_state.owner
 scheduler = Scheduler(owner)
+
+
+def save() -> None:
+    """Write the current owner to data.json."""
+    owner.save_to_json(DATA_FILE)
 
 
 def task_rows(tasks: list[Task]) -> list[dict]:
@@ -39,11 +52,15 @@ if "flash" in st.session_state:
 name_col, budget_col = st.columns(2)
 with name_col:
     # A blank name keeps the current one.
-    owner.name = st.text_input("Owner name", value=owner.name).strip() or owner.name
+    new_name = st.text_input("Owner name", value=owner.name).strip() or owner.name
 with budget_col:
-    owner.available_minutes = int(
+    new_budget = int(
         st.number_input("Daily time budget (minutes)", min_value=1, max_value=1440, value=owner.available_minutes)
     )
+if new_name != owner.name or new_budget != owner.available_minutes:
+    owner.name = new_name
+    owner.available_minutes = new_budget
+    save()
 
 st.divider()
 
@@ -58,6 +75,7 @@ with st.form("add_pet_form", clear_on_submit=True):
         else:
             try:
                 owner.add_pet(Pet(name=pet_name.strip(), species=species, age=int(age)))
+                save()
                 st.success(f"Added {pet_name.strip()}.")
             except ValueError as err:
                 st.error(str(err))
@@ -93,6 +111,7 @@ else:
                             due_date=due,
                         )
                     )
+                    save()
                     st.success(f"Added task to {pet.name}.")
                 except ValueError as err:
                     st.error(str(err))
@@ -109,6 +128,7 @@ else:
     chosen_id = st.selectbox("Pending task", list(labels), format_func=labels.get)
     if st.button("Mark complete"):
         next_task = scheduler.mark_task_complete(chosen_id)
+        save()
         if next_task is not None:
             st.session_state["flash"] = (
                 f"Completed. Next {next_task.frequency} occurrence of "

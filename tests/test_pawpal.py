@@ -1,3 +1,4 @@
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -469,3 +470,71 @@ def test_explain_plan_has_one_line_per_task_and_mentions_budget():
     assert lines[0].startswith("Planned: Fits")
     assert lines[1].startswith("Skipped: Too long")
     assert "30-minute budget" in lines[1]
+
+
+# --- Persistence ---
+
+
+def saved_owner(tmp_path):
+    """Save a two-pet owner (one completed daily task) and return (owner, path)."""
+    scheduler, mochi, bean = make_scheduler(budget=90)
+    walk = add(mochi, "Walk", "08:00", 30, priority="high", frequency="daily")
+    add(bean, "Brush", "09:00", 15, priority="low", due=NEXT_DAY)
+    scheduler.mark_task_complete(walk.task_id)  # keeps Walk as done and adds tomorrow's copy
+    path = tmp_path / "data.json"
+    scheduler.owner.save_to_json(path)
+    return scheduler.owner, path
+
+
+def test_round_trip_preserves_pets_tasks_ids_dates_and_completed(tmp_path):
+    """Loading a saved owner gives back the same pets, tasks, ids, dates, and completed flags."""
+    owner, path = saved_owner(tmp_path)
+    loaded = Owner.load_from_json(path)
+
+    assert (loaded.name, loaded.available_minutes) == ("Jordan", 90)
+    assert [(p.name, p.species, p.age) for p in loaded.pets] == [(p.name, p.species, p.age) for p in owner.pets]
+    original = owner.get_all_tasks()
+    restored = loaded.get_all_tasks()
+    assert [t.task_id for t in restored] == [t.task_id for t in original]
+    assert [t.due_date for t in restored] == [t.due_date for t in original]
+    assert all(isinstance(t.due_date, date) for t in restored)
+    assert [t.completed for t in restored] == [True, False, False]
+    assert [t.pet_name for t in restored] == [t.pet_name for t in original]
+    assert loaded == owner
+
+
+def test_saved_file_stores_dates_as_iso_strings(tmp_path):
+    """The JSON file holds due dates as ISO strings, not objects."""
+    _, path = saved_owner(tmp_path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["pets"][0]["tasks"][0]["due_date"] == DAY.isoformat()
+
+
+def test_load_missing_file_raises_file_not_found(tmp_path):
+    """Loading a path that does not exist raises FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        Owner.load_from_json(tmp_path / "missing.json")
+
+
+@pytest.mark.parametrize(
+    "field_name, value",
+    [
+        ("priority", "urgent"),
+        ("time", "7:30"),
+        ("due_date", "not-a-date"),
+        ("duration_minutes", 0),
+        ("description", None),  # removed from the file below
+    ],
+)
+def test_load_invalid_task_data_raises_value_error(tmp_path, field_name, value):
+    """A bad or missing task field in the file raises ValueError."""
+    _, path = saved_owner(tmp_path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    task = data["pets"][0]["tasks"][0]
+    if field_name == "description":
+        del task[field_name]
+    else:
+        task[field_name] = value
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError):
+        Owner.load_from_json(path)

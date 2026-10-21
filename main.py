@@ -1,7 +1,9 @@
 """CLI demo for PawPal+: builds one owner with two pets and prints today's schedule."""
 
 import sys
+import tempfile
 from datetime import date
+from pathlib import Path
 
 from tabulate import tabulate
 
@@ -37,6 +39,17 @@ def print_conflicts(warnings: list[str]) -> None:
         print(f"  ⚠️ {warning}")
     if not warnings:
         print("  (none)")
+
+
+def round_trip_demo(owner: Owner) -> None:
+    """Save the owner to a temp JSON file, load it back, and report whether it matches."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "owner.json"
+        owner.save_to_json(path)
+        loaded = Owner.load_from_json(path)
+    print(f"  Saved {len(owner.pets)} pets and {len(owner.get_all_tasks())} tasks to a temp file.")
+    print(f"  Loaded {len(loaded.pets)} pets and {len(loaded.get_all_tasks())} tasks back.")
+    print(f"  Loaded owner equals original (ids, dates, completed): {loaded == owner}")
 
 
 def main() -> None:
@@ -123,6 +136,9 @@ def main() -> None:
 
     used = sum(t.duration_minutes for t in planned)
     print(f"\nPlanned {used} of {owner.available_minutes} min.")
+
+    print("\nSave/load round trip (temp file):")
+    round_trip_demo(owner)
 
 
 if __name__ == "__main__":

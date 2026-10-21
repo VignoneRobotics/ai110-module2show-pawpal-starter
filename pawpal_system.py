@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import re
 import uuid
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, timedelta
 from itertools import combinations
+from pathlib import Path
 
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 FREQUENCY_DAYS = {"daily": 1, "weekly": 7}
@@ -147,6 +149,28 @@ class Owner:
                 if task.task_id == task_id:
                     return pet, task
         return None
+
+    def save_to_json(self, path: str | Path) -> None:
+        """Write this owner, their pets, and all tasks to a JSON file (dates as ISO strings)."""
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(asdict(self), f, indent=2, default=lambda value: value.isoformat())
+
+    @classmethod
+    def load_from_json(cls, path: str | Path) -> Owner:
+        """Rebuild an owner from a JSON file, re-running Task validation; raise ValueError on bad data."""
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        try:
+            owner = cls(name=data["name"], available_minutes=data["available_minutes"])
+            for pet_data in data["pets"]:
+                pet = Pet(name=pet_data["name"], species=pet_data["species"], age=pet_data["age"])
+                for task_data in pet_data["tasks"]:
+                    due = date.fromisoformat(task_data["due_date"])
+                    pet.add_task(Task(**{**task_data, "due_date": due}))
+                owner.add_pet(pet)
+        except (KeyError, TypeError) as err:
+            raise ValueError(f"Invalid data in {path}: {err!r}") from err
+        return owner
 
 
 @dataclass
