@@ -7,9 +7,10 @@ from pawpal_system import Owner, Pet, Scheduler, Task
 
 def format_task(task: Task) -> str:
     """Return a one-line description of a task for the schedule."""
+    status = "done" if task.completed else "pending"
     return (
-        f"  {task.time}  {task.description} ({task.pet_name})"
-        f"  {task.duration_minutes} min  {task.priority}"
+        f"  {task.due_date.isoformat()} {task.time}  {task.description} ({task.pet_name})"
+        f"  {task.duration_minutes} min  {task.priority}  [{status}]"
     )
 
 

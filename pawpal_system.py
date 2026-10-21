@@ -110,12 +110,12 @@ class Scheduler:
     owner: Owner
 
     def sort_by_time(self, tasks: list[Task] | None = None) -> list[Task]:
-        """Return tasks sorted by their "HH:MM" time."""
+        """Return tasks sorted by due date, then "HH:MM" time, priority, and description."""
         if tasks is None:
             tasks = self.owner.get_all_tasks()
         return sorted(
             tasks,
-            key=lambda t: (t.time, PRIORITY_RANK[t.priority], t.description),
+            key=lambda t: (t.due_date, t.time, PRIORITY_RANK[t.priority], t.description),
         )
 
     def filter_tasks(
