@@ -31,13 +31,13 @@ Add a "next available slot" feature (SF1) in agent mode: a `Scheduler.next_avail
 
 | | Option A | Option B |
 |-|----------|----------|
-| **Model / tool used** | | |
-| **Prompt** | | |
-| **Response summary** | | |
-| **What was useful** | | |
-| **Problems noticed** | | |
-| **Decision** | | |
+| **Model / tool used** | Claude Opus 5.5 (VS Code extension, Plan mode) | Claude Sonnet 5.5 (VS Code extension, Plan mode) |
+| **Prompt** | Identical for both: "Read CLAUDE.md and pawpal_system.py. Problem: `Task.next_occurrence` sets the next due date to `due_date + FREQUENCY_DAYS`. If a daily or weekly task is completed weeks late, the new copy is already in the past. Propose a fix (policy + code for `next_occurrence`, plus any tests). Explain the tradeoffs. Don't edit files." | (same) |
+| **Response summary** | Policy: skip missed dates and keep the original schedule. Added an optional `today` parameter; when it's left out, the old behavior is kept, so the logic layer never reads the real clock. Wrote full code for 5 tests and listed both callers and the docs that would need updating. | The same policy, presented as a clear A/B/C options table. Defaulted to `today or date.today()`. Proposed 7 test cases, including the "next date equals today" boundary and the scheduler path. |
+| **What was useful** | It read `CLAUDE.md`, the tests and the callers before answering. Its design keeps tests independent of the real date. It flagged every doc that would go stale. | The options table made the trade-offs easy to compare. Its boundary and scheduler-path test cases were ones Opus didn't list. |
+| **Problems noticed** | Forgetting to pass `today` silently gives the old behavior. | It read only `pawpal_system.py`, against the prompt. Reading the real clock by default would make tests depend on the date, which breaks a project rule in `CLAUDE.md`, and it admitted existing tests "may break." |
+| **Decision** | ✅ Used its signature and its "no real clock in the logic layer" rule | ✅ Used its boundary and scheduler-path tests |
 
 **Which approach did you use in your final implementation and why?**
 
-<!-- Your conclusion -->
+A combination. Both models independently proposed the same policy (skip missed dates, keep the original schedule), which gave me confidence it was the right behavior. I took Opus's design: `today` is an optional parameter and the logic layer never reads the real clock, because Sonnet's `date.today()` default would have made my tests depend on the current date. I added Sonnet's boundary and scheduler-path tests. I also chose the simpler `while` loop over the arithmetic formula both offered, because it's easier to read and the speed difference doesn't matter at this scale. The main lesson: Sonnet skipped reading `CLAUDE.md`, so it missed a project rule. Opus's more careful context-gathering mattered more than raw capability on this task.
