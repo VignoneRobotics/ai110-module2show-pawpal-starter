@@ -306,6 +306,14 @@ def test_back_to_back_tasks_do_not_conflict():
     assert scheduler.detect_conflicts() == []
 
 
+def test_back_to_back_tasks_do_not_conflict_reverse_order():
+    """Back-to-back tasks are not a conflict when the later task is added first."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "Bath", "08:30", 30)
+    add(mochi, "Walk", "08:00", 30)
+    assert scheduler.detect_conflicts() == []
+
+
 def test_same_time_on_different_days_does_not_conflict():
     """Tasks at the same time on different due dates do not conflict."""
     scheduler, mochi, _ = make_scheduler()
