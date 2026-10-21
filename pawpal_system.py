@@ -17,9 +17,9 @@ def _to_minutes(time_str: str) -> int:
 
 
 def _describe_range(task: Task) -> str:
-    """Return "Description HH:MM–HH:MM" for a task's start and end time."""
+    """Return "Description HH:MM-HH:MM" for a task's start and end time."""
     end = _to_minutes(task.time) + task.duration_minutes
-    return f"{task.description} {task.time}–{end // 60:02d}:{end % 60:02d}"
+    return f"{task.description} {task.time}-{end // 60:02d}:{end % 60:02d}"
 
 
 @dataclass
