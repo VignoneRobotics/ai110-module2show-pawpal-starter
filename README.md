@@ -108,14 +108,13 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Sorting | `Scheduler.sort_by_time` | Orders by due date, then "HH:MM" time, priority, description. Same-day order is unchanged; recurring next-day copies sort after today's tasks. |
+| Filtering | `Scheduler.filter_tasks` | Filters by `pet_name` (case-insensitive) and/or `completed`; `None` skips a filter. Composes with sorting: `sort_by_time(filter_tasks(pet_name="Mochi"))`. |
+| Conflict detection | `Scheduler.detect_conflicts` | Pairwise check of overlapping ranges (`a_start < b_end and b_start < a_end`) on the same due date, ignoring completed tasks. Back-to-back is not a conflict. Returns same-pet / cross-pet warning strings and never raises. |
+| Recurring tasks | `Task.next_occurrence`, `Scheduler.mark_task_complete` | Completing a daily/weekly task keeps it as history and adds a copy with a new id, due date + 1 or 7 days, on the same pet. "once", unknown ids, and already-completed tasks return None, so no duplicates. |
+| Daily plan | `Scheduler.build_daily_plan`, `Scheduler.explain_plan` | Takes tasks due that day and not completed, picks by priority then time, skips any task that does not fit the remaining budget and continues. Overlaps are warnings only (run `detect_conflicts(planned)`). `explain_plan` gives a reason for each planned and skipped task. |
 
 ## 📸 Demo Walkthrough
 
