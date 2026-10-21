@@ -64,6 +64,18 @@ Known tradeoffs (for reflection): plan and conflict checks are separate (an over
 1. **Design** — UML draft (`diagrams/uml.mmd`), class skeletons in `pawpal_system.py` (attributes + empty stubs). Ask AI to review the skeleton for missing relationships.
 2. **Core implementation** — implement the four classes (incl. duplicate-pet-name rejection, `find_task`, `next_occurrence` from `due_date` not `date.today()`, double-complete guard); `main.py` demo with readable output; tests: `mark_complete()` changes status, `add_task()` increases count.
 3. **UI integration** — import into `app.py`; store `Owner` in `st.session_state` (create only if missing); wire "Add pet" and "Add task" forms to class methods. Replace the starter's dict-based task list.
+### Phase 4 algorithm decisions (approved M–S + review items)
+- **M Conflict algorithm:** simple pairwise double loop (`for i ... for j in range(i+1, n)`), each pair checked once, no duplicate warnings. A sort-and-sweep version is evaluated in Step 5 as the "simplify/performance" comparison; keep whichever Kyle chooses.
+- **N Overlap rule:** `a_start < b_end and b_start < a_end` (minutes via `_to_minutes`). Back-to-back (end == start) is **not** a conflict.
+- **O Scope:** only compare tasks with the **same `due_date`** that are **not completed**.
+- **P Warning format:** `Conflict (same pet: Mochi): Walk 08:00–08:30 overlaps Bath 08:15–08:45` / `Conflict (cross-pet: Mochi, Bean): ...`.
+- **Q Recurrence:** `next_occurrence` uses `dataclasses.replace(self, task_id=<new uuid>, completed=False, due_date=self.due_date + timedelta(days=FREQUENCY_DAYS[freq]))`. Must override `task_id` (replace copies it otherwise). Returns None for "once".
+- **R Filtering:** `None` = don't filter on that field; filters combine; `pet_name` match is case-insensitive (same as `Owner.get_pet`).
+- **S Scope:** don't touch `app.py` in Phase 4. `main.py` uses `sort_by_time` (remove the inline `sorted()`), shows out-of-order tasks, a filtered view, a completed daily task with its next-day copy, and same-pet + cross-pet conflict warnings.
+- **Display order:** `build_daily_plan` still *selects* by priority, but callers *display* `sort_by_time(planned)`; `explain_plan` output stays in selection order. No signature change.
+- **Conflicts on the plan:** callers run `detect_conflicts(planned)` (CLI in Phase 4, `st.warning` in Phase 6).
+- **Rejected:** "overdue" filter (scope creep, signature change) — candidate for reflection 4b "next steps". Optimal/knapsack planning — greedy is the documented tradeoff.
+
 4. **Algorithms** — sorting, filtering, recurrence (timedelta), conflict detection; update `main.py` with out-of-order and overlapping tasks; README "Smarter Scheduling" table naming each method.
 5. **Testing** — tests always pass `due_date` explicitly (default is `date.today()`, which makes tests date-dependent). Sorting correctness, daily recurrence creates the next-day task, conflict detection flags overlaps, plus edge cases (pet with no tasks, exact same time, plan only uses tasks due that day, budget exhausted). Light input validation in `__post_init__`: valid HH:MM, known priority/frequency, positive duration, and reject tasks that run past midnight (start + duration > 24:00).
 6. **Polish** — Streamlit shows sorted plan, `st.warning` for conflicts, `st.table`/`st.success`; update `uml.mmd` to final; README Features + Demo Walkthrough + CLI sample.
