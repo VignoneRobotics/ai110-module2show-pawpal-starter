@@ -32,6 +32,7 @@ Workflow is **CLI-first**: logic in `pawpal_system.py` must work and be verified
 - Priority is a string: `"low" | "medium" | "high"`, ranked via `PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}`.
 - Frequency is a string: `"once" | "daily" | "weekly"`, mapped via `FREQUENCY_DAYS = {"daily": 1, "weekly": 7}`.
 - Conflict detection returns warning strings; it never raises.
+- **ASCII-only text in `pawpal_system.py`** (warnings, explanations). Emoji/colors (SF4) live only in the CLI/Streamlit display layer, never in the logic layer. Redirected Windows output garbles non-ASCII.
 - No new dependencies without asking (exception: `tabulate` for the formatting stretch).
 
 ## Design (approved decisions A–L)
@@ -68,7 +69,7 @@ Known tradeoffs (for reflection): plan and conflict checks are separate (an over
 - **M Conflict algorithm:** simple pairwise double loop (`for i ... for j in range(i+1, n)`), each pair checked once, no duplicate warnings. A sort-and-sweep version is evaluated in Step 5 as the "simplify/performance" comparison; keep whichever Kyle chooses.
 - **N Overlap rule:** `a_start < b_end and b_start < a_end` (minutes via `_to_minutes`). Back-to-back (end == start) is **not** a conflict.
 - **O Scope:** only compare tasks with the **same `due_date`** that are **not completed**.
-- **P Warning format:** `Conflict (same pet: Mochi): Walk 08:00–08:30 overlaps Bath 08:15–08:45` / `Conflict (cross-pet: Mochi, Bean): ...`.
+- **P Warning format:** `Conflict (same pet: Mochi): Walk 08:00-08:30 overlaps Bath 08:15-08:45` / `Conflict (cross-pet: Mochi, Bean): ...`. Plain ASCII hyphen only — an en dash was garbled (`û`) when output was redirected in Windows PowerShell.
 - **Q Recurrence:** `next_occurrence` uses `dataclasses.replace(self, task_id=<new uuid>, completed=False, due_date=self.due_date + timedelta(days=FREQUENCY_DAYS[freq]))`. Must override `task_id` (replace copies it otherwise). Returns None for "once".
 - **R Filtering:** `None` = don't filter on that field; filters combine; `pet_name` match is case-insensitive (same as `Owner.get_pet`).
 - **S Scope:** don't touch `app.py` in Phase 4. `main.py` uses `sort_by_time` (remove the inline `sorted()`), shows out-of-order tasks, a filtered view, a completed daily task with its next-day copy, and same-pet + cross-pet conflict warnings.
