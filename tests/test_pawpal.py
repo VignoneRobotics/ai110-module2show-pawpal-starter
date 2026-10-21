@@ -171,6 +171,30 @@ def test_sort_by_time_with_no_tasks_returns_empty_list():
     assert scheduler.sort_by_time() == []
 
 
+def test_sort_by_priority_puts_high_before_low_at_later_time():
+    """A high-priority task at 09:00 sorts before a low-priority task at 07:00 on the same day."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "Low early", "07:00", 10, priority="low")
+    add(mochi, "High late", "09:00", 10, priority="high")
+    assert [t.description for t in scheduler.sort_by_priority()] == ["High late", "Low early"]
+
+
+def test_sort_by_priority_equal_priority_falls_back_to_time():
+    """Tasks with the same priority sort by time."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "Later", "10:00", 10, priority="medium")
+    add(mochi, "Earlier", "08:00", 10, priority="medium")
+    assert [t.description for t in scheduler.sort_by_priority()] == ["Earlier", "Later"]
+
+
+def test_sort_by_priority_next_day_high_sorts_after_today():
+    """A next-day high-priority task still sorts after today's low-priority task."""
+    scheduler, mochi, _ = make_scheduler()
+    add(mochi, "Tomorrow high", "07:00", 10, priority="high", due=NEXT_DAY)
+    add(mochi, "Today low", "08:00", 10, priority="low", due=DAY)
+    assert [t.description for t in scheduler.sort_by_priority()] == ["Today low", "Tomorrow high"]
+
+
 def test_sort_and_filter_compose():
     """sort_by_time accepts the output of filter_tasks."""
     scheduler, mochi, bean = make_scheduler()

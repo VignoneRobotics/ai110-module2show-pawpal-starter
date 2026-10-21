@@ -70,6 +70,10 @@ def main() -> None:
     for task in scheduler.sort_by_time():
         print(format_task(task))
 
+    print("\nSorted by priority (then time):")
+    for task in scheduler.sort_by_priority():
+        print(format_task(task))
+
     print("\nMochi's tasks only (by time):")
     for task in scheduler.sort_by_time(scheduler.filter_tasks(pet_name="Mochi")):
         print(format_task(task))

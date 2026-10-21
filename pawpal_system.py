@@ -164,6 +164,15 @@ class Scheduler:
             key=lambda t: (t.due_date, t.time, PRIORITY_RANK[t.priority], t.description),
         )
 
+    def sort_by_priority(self, tasks: list[Task] | None = None) -> list[Task]:
+        """Return tasks sorted by due date, then priority, "HH:MM" time, and description."""
+        if tasks is None:
+            tasks = self.owner.get_all_tasks()
+        return sorted(
+            tasks,
+            key=lambda t: (t.due_date, PRIORITY_RANK[t.priority], t.time, t.description),
+        )
+
     def filter_tasks(
         self,
         tasks: list[Task] | None = None,
